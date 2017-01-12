@@ -1,0 +1,182 @@
+---
+# tasks file for postgres-bdr
+
+- include_vars:
+    file: defaults/base.yml
+  when: base == 'yah'
+
+- include_vars:
+    file: defaults/not_base.yml
+  when: base != 'yah'
+
+- name: Turn off firewalld
+  service:
+    name: firewalld
+    state: stopped
+    enabled: false
+
+- name: Install PKGs
+  yum:
+    name: '{{ item }}'
+    state: present
+  with_items:
+    - python-psycopg2
+    - http://packages.2ndquadrant.com/postgresql-bdr94-2ndquadrant/yum-repo-rpms/postgresql-bdr94-2ndquadrant-redhat-latest.noarch.rpm
+
+- name: Install BDR postgres
+  yum:
+    name: postgresql-bdr94-bdr
+    state: present
+
+- name: Remove old dir if it exists
+  file:
+    path: '{{ psotgres_data_dir }}'
+    state: absent
+
+- name: Create BDR Path
+  file:
+    path: '{{ psotgres_data_dir }}'
+    state: directory
+  become: true
+  become_user: postgres
+  become_method: su
+
+- name: Init DBs
+  command: initdb -D {{ psotgres_data_dir }} -A trust
+  args:
+    creates: '{{ psotgres_data_dir }}/postgresql.conf'
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+
+- name: Configure postgresql.conf
+  lineinfile:
+    dest: "{{ psotgres_data_dir }}/postgresql.conf"
+    state: present
+    regexp: "{{ item.0 }}"
+    line: "{{ item.1 }}"
+  with_together:
+    - '{{ postgresql_shared_reg }}'
+    - '{{ postgresql_shared_line }}'
+  become: true
+  become_user: postgres
+  become_method: su
+
+# - name: Configure pg_hba.conf
+#   replace:
+#     dest: '{{ psotgres_data_dir }}/pg_hba.conf'
+#     regexp: '{{ item.0 }}'
+#     replace: '{{ item.1 }}'
+#   become: true
+#   become_user: postgres
+#   become_method: su
+#   with_together:
+#     - '{{ pg_hba_regex }}'
+#     - '{{ pg_hba_value }}'
+
+- name: Configure pg_hba.conf
+  lineinfile:
+    dest: '{{ psotgres_data_dir }}/pg_hba.conf'
+    insertafter: EOF
+    line: '{{ item }}'
+    state: present
+  become: true
+  become_user: postgres
+  become_method: su
+  with_items: '{{ pg_hba_value }}'
+
+
+- name: Start BDR
+  command: pg_ctl -l {{ psotgres_data_dir }}/bdr{{ pg_port }}.log -D {{ psotgres_data_dir }} -o "-p {{ pg_port }}" -w restart
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+
+
+- name: Create Postgres DB
+  postgresql_db:
+    name: '{{ db_name }}'
+    state: present
+    port: '{{ pg_port }}'
+  become: true
+  become_user: postgres
+  become_method: su
+
+- name: Enable Extents
+  postgresql_ext:
+    name: '{{ item }}'
+    state: present
+    db: '{{ db_name }}'
+    port: '{{ pg_port }}'
+  with_items:
+    - btree_gist
+    - bdr
+  register: extents
+
+- name: Enable Base BDR
+  command: '{{ postgres_setup_command }}'
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+  when:
+    - extents.changed
+    - base == 'yah'
+
+- name: Run Join BDR Command For Base
+  command: psql -p {{ pg_port }} {{ db_name }} -c "SELECT bdr.bdr_node_join_wait_for_ready();"
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+  when:
+    - extents.changed
+    - base == 'yah'
+
+# - name: dd
+#   debug:
+#     msg: '{{ postgres_setup_command }}'
+#
+
+
+- name: Wait for base
+  wait_for:
+    port: '{{ pg_port}}'
+    host: '{{ base_fqdn }}'
+    state: started
+    delay: 5
+  when: base != 'yah'
+
+- name: enable non-BASE thing
+  command: '{{ postgres_setup_command }}'
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+  when:
+    - extents.changed
+    - base != 'yah'
+  ignore_errors: true
+
+- name: Run non-BASE Join Command
+  command: psql -p {{ pg_port }} {{ db_name }} -c "SELECT bdr.bdr_node_join_wait_for_ready();"
+  become: true
+  become_user: postgres
+  become_method: su
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/usr/pgsql-9.4/bin"
+  when:
+    - extents.changed
+    - base != 'yah'
+
+- name: Lets See...
+  service:
+    name: postgresql-9.4
+    enabled: true

@@ -1,0 +1,34 @@
+---
+base: false
+
+db_name: bdrdemo
+
+postgresql_shared_reg:
+  - "^#?listen_addresses = .*$"
+  - "^#?max_replication_slots = .*$"
+  - "^#?max_wal_senders = .*$"
+  - "^#?wal_level = .*$"
+  - "^#?track_commit_timestamp = .*$"
+  - "^#?shared_preload_libraries = .*$"
+  - "^#?max_worker_processes = .*$"
+
+postgresql_shared_line:
+  - "listen_addresses = '*'"
+  - "max_replication_slots = 3"
+  - "max_wal_senders = 4"
+  - "wal_level = 'logical'"
+  - "track_commit_timestamp = on"
+  - "shared_preload_libraries = 'bdr'"
+  - "max_worker_processes = 10"
+
+pg_hba_regex:
+  - ^(#local \s+ replication  \s+ postgres \s+ trust)
+  - ^(#host \s+ replication  \s+ postgres \s+ 127\.0\.0\.1/32 \s+ trust)
+  - ^(#host \s+ replication  \s+ postgres \s+ ::1/128 \s+ trust)
+
+pg_hba_value:
+  - "local    replication     postgres                              trust"
+  - "host    all     postgres        172.16.66.1/24            trust"
+  - "host    replication     postgres        172.16.66.1/24            trust"
+  - "host    replication     postgres        ::1/128                 trust"
+  - "host    replication     postgres        127.0.0.1/24                 trust"

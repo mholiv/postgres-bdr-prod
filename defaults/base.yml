@@ -1,0 +1,7 @@
+---
+
+pg_port: 5432
+#psotgres_data_dir: /var/lib/pgsql/2ndquadrant_bdr/bdr5598
+psotgres_data_dir: /var/lib/pgsql/9.4-bdr/data
+
+postgres_setup_command: psql -p {{ pg_port }} {{ db_name }} -c "SELECT bdr.bdr_group_create(local_node_name := 'node1', node_external_dsn := 'host={{ansible_default_ipv4.address}} port={{ pg_port }} dbname={{ db_name }}');"

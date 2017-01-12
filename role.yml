@@ -1,0 +1,15 @@
+---
+- name: Test
+  hosts: all
+  roles:
+    - .
+  # tasks:
+  #   - name: Test
+  #     find:
+  #       path: /etc/
+  #     register: files
+  #
+  #   - name: debug
+  #     debug:
+  #       msg: '{{ item.path }}'
+  #     with_items: '{{ files.files }}'

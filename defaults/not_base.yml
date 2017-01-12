@@ -1,0 +1,6 @@
+---
+
+pg_port: 5432
+#psotgres_data_dir: /var/lib/pgsql/2ndquadrant_bdr/bdr5599
+psotgres_data_dir: /var/lib/pgsql/9.4-bdr/data
+postgres_setup_command: psql -p {{ pg_port }} {{ db_name }} -c "SELECT bdr.bdr_group_join(local_node_name := 'node2', node_external_dsn := 'port={{ pg_port }} dbname={{ db_name }} host={{ansible_default_ipv4.address}}', join_using_dsn := 'port={{ pg_port }} dbname={{ db_name }} host={{ base_fqdn }}');"

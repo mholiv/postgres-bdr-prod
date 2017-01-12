@@ -1,0 +1,4 @@
+---
+# vars file for postgres-bdr
+
+base_fqdn: 172.16.66.176
